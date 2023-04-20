@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   useBase,
   Input,
@@ -12,28 +12,25 @@ import {
   FieldPickerSynced,
 } from "@airtable/blocks/ui";
 import "./styles.css";
-// import {} from "./functions";
-// import { ExtensionStateProvider, useExtensionState } from "./states";
 import axios from "axios";
-// Import firebase
-import firebase from "@firebase/app";
-import "@firebase/functions";
 
-// Initialize firebase
+import { initializeApp } from "firebase/app";
+import { getFunctions, httpsCallable } from "firebase/functions";
+
+
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_AUTH_DOMAIN",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_STORAGE_BUCKET",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID",
+  apiKey: "AIzaSyC-O5CP1WNxAdk-EUJfLDCUOAG_DS738XU",
+  authDomain: "tablemateendpoint.firebaseapp.com",
+  databaseURL: "https://tablemateendpoint-default-rtdb.firebaseio.com",
+  projectId: "tablemateendpoint",
+  storageBucket: "tablemateendpoint.appspot.com",
+  messagingSenderId: "1040718631728",
+  appId: "1:1040718631728:web:6fdc289865fc7e8cd7aef5",
+  measurementId: "G-WM5NX0QRTX"
 };
 
-if (!firebase.apps.length) {
-  firebase.initializeApp(firebaseConfig);
-}
-
-const functions = firebase.functions();
+const app = initializeApp(firebaseConfig);
+const functions = getFunctions(app);
 
 
 const TableMateGPTExtension = () => {
@@ -48,7 +45,7 @@ const TableMateGPTExtension = () => {
   const inputFieldId = globalConfig.get("inputField");
   const checkmarkFieldId = globalConfig.get("checkmarkField");
   const outputFieldId = globalConfig.get("outputField");
-  
+
   const inputView = inputTable
     ? inputTable.getViewByIdIfExists(inputViewId)
     : null;
@@ -61,6 +58,31 @@ const TableMateGPTExtension = () => {
   const outputField = inputTable
     ? inputTable.getFieldByIdIfExists(outputFieldId)
     : null;
+
+  const checkBaseAccess = async () => {
+    const baseId = base.id;
+
+    try {
+      const checkAccessFunction = httpsCallable(functions, "checkAccess");
+      const result = await checkAccessFunction({ baseId });
+
+      if (result.data.success) {
+        console.log("Access allowed:", result.data.message);
+        return true;
+      } else {
+        console.error("Access denied");
+        return false;
+      }
+    } catch (error) {
+      console.error("Error calling checkAccess function:", error);
+    }
+  };
+
+  useEffect(() => {
+    checkBaseAccess().then((accessAllowed) => {
+      setBaseAuthenticated(accessAllowed);
+    });
+  }, []);
 
   // send to chatGPT
   const sendToGPT = async () => {
@@ -127,239 +149,154 @@ const TableMateGPTExtension = () => {
     // setRecordCount(recordQuantity);
   };
 
-
-
-
-  // const gptURL = config.gptURL;
-  // const tableMateURL = config.tableMateURL;
-
-
   //States
   const [helpVisibility, setHelpVisibility] = useState(false);
-  const [tableMateKeyVerified, setTableMateKeyVerified] = useState(true);
-  const [gptkeyVerified, setGptkeyVerified] = useState(true);
-  const [apiInputVisibility, setApiInputVisibility] = useState(true);
-  // const [planValid, setPlanValid] = useState(true);
-  const [formEnabled, setFormEnabled] = useState(tableMateKeyVerified && gptkeyVerified);
-
-
+  const [baseAuthenticated, setBaseAuthenticated] = useState(false); // If this base is authenticated
+  const [hasGPTKey, setHasGPTKey] = useState(false); // If there is a corresponding chatGPT key
 
   return (
     <>
-      <Box padding={3}>
-        <Box marginBottom={3}>
-          <Button
-            icon={helpVisibility ? "up" : "down"}
-            aria-label="Toggle help text"
-            size="small"
-            variant="secondary"
-            className="secondary"
-            onClick={() => setHelpVisibility(!helpVisibility)}
+      {baseAuthenticated ? ( // Should be "baseAuthenticated" not "!baseAuthenticated"
+        <Box padding={3}>
+          <Box marginBottom={3}>
+            <Button
+              icon={helpVisibility ? "up" : "down"}
+              aria-label="Toggle help text"
+              size="small"
+              variant="secondary"
+              className="secondary"
+              onClick={() => setHelpVisibility(!helpVisibility)}
+            >
+              {helpVisibility && "Hide Instructions"}
+              {!helpVisibility && "Show Instructions"}
+            </Button>
+          </Box>
+          <Box
+            marginBottom={3}
+            border="1px solid #d9d9d9;"
+            borderRadius={5}
+            padding={3}
           >
-            {helpVisibility && "Hide Instructions"}
-            {!helpVisibility && "Show Instructions"}
-          </Button>
-        </Box>
+            <Text fontWeight="bold" marginTop={2} marginBottom={1}>
+              Input Table
+            </Text>
+            {helpVisibility && (
+              <Text marginBottom={2}>
+                1. Select a table from which you'd like to send a prompt to
+                ChatGPT.
+              </Text>
+            )}
+            <TablePickerSynced
+              globalConfigKey="inputTable"
+            />
 
-{/*         
-        <Box
-          marginBottom={3}
-          border="1px solid #d9d9d9;"
-          borderRadius={5}
-          padding={3}
-        >
-          <Text fontWeight="bold" marginBottom={1}>
-            Connect TableMate
-          </Text>
-          <Box display="flex" alignItems="center">
-            {formEnabled && (
+            {inputTable && (
               <>
-                <Input
-                  value={apiKey}
-                  onChange={}
-                  placeholder="Enter your API key"
+                <Text fontWeight="bold" marginTop={2} marginBottom={2}>
+                  Input View
+                </Text>
+                {helpVisibility && (
+                  <Text marginBottom={2}>
+                    2. Select a view from that tablle from which you'd like to
+                    send a prompt to ChatGPT.
+                  </Text>
+                )}
+                <ViewPickerSynced
+                  table={inputTable}
+                  globalConfigKey="viewField"
                 />
-                <Button
-                  onClick={}
-                  variant="primary"
-                  marginLeft={2}
-                >
-                  Submit
-                </Button>
               </>
             )}
 
-            {formEnabled && (
-              <Text
-                style={{ color: "green" }}
-                marginTop={2}
-                marginBottom={1}
-                marginRight={2}
-              >
-                You're connected to TableMate
-              </Text>
+            {inputTable && (
+              <>
+                <Text fontWeight="bold" marginTop={2} marginBottom={2}>
+                  Input Field
+                </Text>
+                {helpVisibility && (
+                  <Text marginBottom={2}>
+                    3. Select a field from that table and view from which you'd
+                    like to send a prompt to ChatGPT. This can be a Single Line
+                    Text, Multi-Line Text, or Formula field.
+                  </Text>
+                )}
+                <FieldPickerSynced
+                  table={inputTable}
+                  globalConfigKey="inputField"
+                  allowedTypes={[
+                    "singleLineText",
+                    "multilineText",
+                    "formula",
+                    "richText",
+                  ]}
+                  onChange={(newFieldId) => setInputFieldId(newFieldId)}
+                />
+              </>
             )}
 
-            {formEnabled && (
+            {inputTable && (
+              <>
+                <Text fontWeight="bold" marginTop={2} marginBottom={2}>
+                  Ready to Send
+                </Text>
+                {helpVisibility && (
+                  <Text marginBottom={2}>
+                    4. Select a checkmark or formula field which will output
+                    "True", "False", 1, or 0 to indicate which rows you would like
+                    to send to ChatGPT.
+                  </Text>
+                )}
+                <FieldPickerSynced
+                  table={inputTable}
+                  globalConfigKey="checkmarkField"
+                  allowedTypes={["checkbox", "formula"]}
+                />
+              </>
+            )}
+
+            {inputTable && (
+              <>
+                <Text fontWeight="bold" marginTop={2} marginBottom={2}>
+                  Output Field
+                </Text>
+                {helpVisibility && (
+                  <Text marginBottom={2}>
+                    5. Select a table, view, and field from which you'd like to
+                    send a prompt to ChatGPT.
+                  </Text>
+                )}
+                <FieldPickerSynced
+                  table={inputTable}
+                  globalConfigKey="outputField"
+                  allowedTypes={["singleLineText", "multilineText", "richText"]}
+                />
+              </>
+            )}
+            <Box marginTop={3}>
+              {helpVisibility && (
+                <Text marginBottom={2}>
+                  6. When all of the above fields are filled out, you've written
+                  your ChatGPT prompts into the Input Field, and you've checked
+                  off the corresponding rows with the Checkmark Field, press Run.
+                </Text>
+              )}
               <Button
-                variant="secondary"
-                onClick={() => setApiInputVisibility(!apiInputVisibility)}
-                className="secondary"
+                variant="primary"
+                onClick={sendToGPT}
               >
-                {apiInputVisibility ? "View API Key" : "Hide API Key"}
+                Run ChatGPT
               </Button>
-
-            )}
-          </Box>
-          {formEnabled && (
-            <Box marginTop={2} marginBottom={1}>
-              <a
-                style={{ color: "rgb(45,127,249)" }}
-                href="https://www.tablemate.io/user/apis"
-                target="_blank"
-                rel="noreferrer noopener"
-              >
-                Find your TableMate API here.
-              </a>
             </Box>
-          )}
-        </Box>
-         */}
-        <Box
-          marginBottom={3}
-          border="1px solid #d9d9d9;"
-          borderRadius={5}
-          padding={3}
-          opacity={formEnabled ? "1" : ".4"}
-        >
-          <Text fontWeight="bold" marginTop={2} marginBottom={1}>
-            Input Table
-          </Text>
-          {helpVisibility && (
-            <Text marginBottom={2}>
-              1. Select a table from which you'd like to send a prompt to
-              ChatGPT.
-            </Text>
-          )}
-          <TablePickerSynced
-            disabled={!formEnabled}
-            globalConfigKey="inputTable"
-          />
-
-          {inputTable && (
-            <>
-              <Text fontWeight="bold" marginTop={2} marginBottom={2}>
-                Input View
-              </Text>
-              {helpVisibility && (
-                <Text marginBottom={2}>
-                  2. Select a view from that tablle from which you'd like to
-                  send a prompt to ChatGPT.
-                </Text>
-              )}
-              <ViewPickerSynced
-                table={inputTable}
-                disabled={!formEnabled}
-                globalConfigKey="viewField"
-              />
-            </>
-          )}
-
-          {inputTable && (
-            <>
-              <Text fontWeight="bold" marginTop={2} marginBottom={2}>
-                Input Field
-              </Text>
-              {helpVisibility && (
-                <Text marginBottom={2}>
-                  3. Select a field from that table and view from which you'd
-                  like to send a prompt to ChatGPT. This can be a Single Line
-                  Text, Multi-Line Text, or Formula field.
-                </Text>
-              )}
-              <FieldPickerSynced
-                table={inputTable}
-                globalConfigKey="inputField"
-                disabled={!formEnabled}
-                allowedTypes={[
-                  "singleLineText",
-                  "multilineText",
-                  "formula",
-                  "richText",
-                ]}
-                onChange={(newFieldId) => setInputFieldId(newFieldId)}
-              />
-            </>
-          )}
-
-          {inputTable && (
-            <>
-              <Text fontWeight="bold" marginTop={2} marginBottom={2}>
-                Ready to Send
-              </Text>
-              {helpVisibility && (
-                <Text marginBottom={2}>
-                  4. Select a checkmark or formula field which will output
-                  "True", "False", 1, or 0 to indicate which rows you would like
-                  to send to ChatGPT.
-                </Text>
-              )}
-              <FieldPickerSynced
-                table={inputTable}
-                globalConfigKey="checkmarkField"
-                disabled={!formEnabled}
-                allowedTypes={["checkbox", "formula"]}
-              />
-            </>
-          )}
-
-          {inputTable && (
-            <>
-              <Text fontWeight="bold" marginTop={2} marginBottom={2}>
-                Output Field
-              </Text>
-              {helpVisibility && (
-                <Text marginBottom={2}>
-                  5. Select a table, view, and field from which you'd like to
-                  send a prompt to ChatGPT.
-                </Text>
-              )}
-              <FieldPickerSynced
-                table={inputTable}
-                globalConfigKey="outputField"
-                disabled={!formEnabled}
-                allowedTypes={["singleLineText", "multilineText", "richText"]}
-              />
-            </>
-          )}
-          <Box marginTop={3}>
-            {helpVisibility && (
-              <Text marginBottom={2}>
-                6. When all of the above fields are filled out, you've written
-                your ChatGPT prompts into the Input Field, and you've checked
-                off the corresponding rows with the Checkmark Field, press Run.
-              </Text>
-            )}
-            <Button
-              variant="primary"
-              onClick={sendToGPT}
-              disabled={!formEnabled}
-            >
-              Run ChatGPT
-            </Button>
           </Box>
         </Box>
-      </Box>
+      ) : (
+        <Box padding={3}>
+          {/* Add a message to prompt the user to set up */}
+          <Text fontWeight="bold">Please set up your access.</Text>
+        </Box>
+      )}
     </>
   );
 };
-
-// const WrappedTableMateGPTExtension = () => (
-//   <ExtensionStateProvider>
-//     <TableMateGPTExtension />
-//   </ExtensionStateProvider>
-// );
-
-//initializeBlock(() => <WrappedTableMateGPTExtension />);
 
 initializeBlock(() => <TableMateGPTExtension />);
