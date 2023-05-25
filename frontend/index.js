@@ -278,7 +278,7 @@ const TableMateGPTExtension = () => {
               marginTop={0}
               marginBottom={0}
             >
-              ChatGPT with TableMate
+              ChatGPT with TableMate Booty should be working with Output
             </Text>
             {/* For eventual error handling and service status */}
             {baseAuthenticated ? (
@@ -348,7 +348,7 @@ const TableMateGPTExtension = () => {
           {inputTable && (
             <>
               <Text fontWeight="bold" marginTop={2} marginBottom={2}>
-                Booty Output
+                Booty should be working with Output
               </Text>
               {helpVisibility && (
                 <Text
