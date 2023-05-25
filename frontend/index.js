@@ -27,6 +27,8 @@ import axios from "axios";
 import { initializeApp } from "firebase/app";
 import { getFunctions, httpsCallable } from "firebase/functions";
 
+
+
 const firebaseConfig = {
   apiKey: "AIzaSyC-O5CP1WNxAdk-EUJfLDCUOAG_DS738XU",
   authDomain: "tablemateendpoint.firebaseapp.com",
@@ -346,7 +348,7 @@ const TableMateGPTExtension = () => {
           {inputTable && (
             <>
               <Text fontWeight="bold" marginTop={2} marginBottom={2}>
-                Output
+                Booty Output
               </Text>
               {helpVisibility && (
                 <Text
