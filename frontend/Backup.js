@@ -278,7 +278,7 @@ const TableMateGPTExtension = () => {
               marginTop={0}
               marginBottom={0}
             >
-              ChatGPT with TableMate
+              ChatGPT with TableMate Number 2
             </Text>
             {/* For eventual error handling and service status */}
             {baseAuthenticated ? (
@@ -312,7 +312,7 @@ const TableMateGPTExtension = () => {
           {inputTable && (
             <>
               <Text fontWeight="bold" marginTop={0} marginBottom={2}>
-                Input
+                Input Wowsers
               </Text>
               {helpVisibility && (
                 <Text
