@@ -78,7 +78,7 @@ const TableMateGPTExtension = () => {
   const emailAddress = "help@tablemate.io";
 
   // Debugging flag: If this is set to true, additional debugging information will be logged to the console.
-  let debug = true; // Set to false before releasing
+  let debug = false; // Set to false before releasing
 
   function customLog(...params) {
     if (debug) {
@@ -247,15 +247,23 @@ const TableMateGPTExtension = () => {
       customLog("Setting record count to:", recordCount);
       const updateTaskCount = httpsCallable(functions, "updateTaskCount");
       const result = await updateTaskCount({ baseId, newRecords: recordCount });
-
-      customLog("Received response from updateTaskCount:", result);
-      customLog("Updated record count:", result.data.updatedRecordCount);
-      setCurrentRecordCount(result.data.updatedRecordCount);
-
+      if (result.data.message === "Skipped Stripe update for user without subscription details.") {
+        // Handle this case specifically, maybe log a message or update the UI
+        customLog("Received response from updateTaskCount:", result);
+        customLog("Updated record count:", result.data.updatedRecordCount);
+        customLog("Stripe update skipped for user without subscription details.");
+    } else {
+        setCurrentRecordCount(result.data.updatedRecordCount);
+    }
+     
     } catch (error) {
-      console.error("Error updating record count:", error);
+      console.error("Error occurred in setRecordCount:", error);
+      if (error.details) {
+        console.error("Detailed error:", error.details);
+      }
     }
   };
+
 
   // updateTrialStatus function: This function updates the frontend and backend because the trial number has been reached
   const updateTrialStatus = async () => {
@@ -334,19 +342,19 @@ const TableMateGPTExtension = () => {
       globalConfig.get(
         generateConfigKey(cursor.activeTableId, "temperature")
       ) || defaultTemperature;
-    console.log("temperatureValue:", temperatureValue);
+    customLog("temperatureValue:", temperatureValue);
     const temperature = parseFloat(temperatureValue);
 
     const topPValue =
       globalConfig.get(generateConfigKey(cursor.activeTableId, "topP")) ||
       defaultTopP;
-    console.log("topP:", topPValue);
+    customLog("topP:", topPValue);
     const topP = parseFloat(topPValue);
 
     const bestOfValue =
       globalConfig.get(generateConfigKey(cursor.activeTableId, "bestOf")) ||
       defaultBestOf;
-    console.log("bestOf:", bestOfValue);
+    customLog("bestOf:", bestOfValue);
     const bestOf = parseFloat(bestOfValue);
 
     if (
@@ -409,7 +417,7 @@ const TableMateGPTExtension = () => {
 
         try {
           customLog("Starting GPT tasks");
-          console.log('Sending request to GPT with parameters:', {
+          customLog('Sending request to GPT with parameters:', {
             prompt: prompt,
             max_tokens: maxTokens,
             model: gptModel,
@@ -455,6 +463,7 @@ const TableMateGPTExtension = () => {
             setFailedTasksCount(prevCount => prevCount + 1);
           }
         }
+        
 
       }
     };
@@ -542,7 +551,7 @@ const TableMateGPTExtension = () => {
   function Loader({ loading }) {
     return loading ? (
       <Box marginRight={2} marginTop={1}>
-        <img src="/assets/daisy.gif" alt="Loading..." width="17px" height="17px" />
+        <img src="https://uploads-ssl.webflow.com/6412470803111e42c7b1d73b/65662d24ebd1a8cb7e48200f_daisy.gif" alt="Loading..." width="17px" height="17px" />
       </Box>
     ) : null;
   }
@@ -889,7 +898,7 @@ const TableMateGPTExtension = () => {
                 value={gptModel}
                 options={options}
                 onChange={(newValue) => {
-                  console.log("Selected Value:", newValue);
+                  customLog("Selected Value:", newValue);
                   globalConfig.setAsync(
                     generateConfigKey(cursor.activeTableId, "gptModel"),
                     newValue
