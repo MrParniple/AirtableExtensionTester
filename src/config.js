@@ -1,1 +1,0 @@
-export const chatgptApiKey = "your_chatgpt_api_key_here";

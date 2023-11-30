@@ -1,4 +1,0 @@
-{
-  "gptURL": "https://api.openai.com/v1/engines/text-davinci-003/completions",
-  "tableMateURL": "https://app.tablemate.io/.netlify/functions//.netlify/functions/"
-}

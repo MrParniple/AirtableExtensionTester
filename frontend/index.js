@@ -1,5 +1,6 @@
+/* eslint-disable max-len */
 // Airtable Extension: This component interfaces with Airtable to enable the TableMateGPTExtension capabilities. It mainly performs the interaction with the TableMate backend and with the GPT-3 API.
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react"
 import {
   useBase,
   Input,
@@ -11,15 +12,13 @@ import {
   useGlobalConfig,
   FieldPickerSynced,
   useCursor,
-  Link,
-} from "@airtable/blocks/ui";
-import "./styles.css";
-import axios from "axios";
-import pLimit from 'p-limit';
-// import logo from "../assets/logo.png";
+  Link
+} from "@airtable/blocks/ui"
+import "./styles.css"
+import pLimit from "p-limit"
 
-import { initializeApp } from "firebase/app";
-import { getFunctions, httpsCallable } from "firebase/functions";
+import { initializeApp } from "firebase/app"
+import { getFunctions, httpsCallable } from "firebase/functions"
 
 // Firebase configuration: These are the settings required to establish a connection to the Firebase backend.
 const firebaseConfig = {
@@ -30,247 +29,232 @@ const firebaseConfig = {
   storageBucket: "tablemateendpoint.appspot.com",
   messagingSenderId: "1040718631728",
   appId: "1:1040718631728:web:6fdc289865fc7e8cd7aef5",
-  measurementId: "G-WM5NX0QRTX",
-};
+  measurementId: "G-WM5NX0QRTX"
+}
 
-const app = initializeApp(firebaseConfig);
-const functions = getFunctions(app);
-
+const app = initializeApp(firebaseConfig)
+const functions = getFunctions(app)
 
 // TableMateGPTExtension component: This is the primary React component that orchestrates the whole process.
 const TableMateGPTExtension = () => {
-  const base = useBase();
-  const cursor = useCursor();
-  const globalConfig = useGlobalConfig();
-  // const gptURL =
-  //   "https://api.openai.com/v1/engines/gpt-3.5-turbo-16k/completions";
+  const base = useBase()
+  const cursor = useCursor()
+  const globalConfig = useGlobalConfig()
 
   // State initializations: Here we are setting up state variables for various values that we need to keep track of in our component.
-  const [baseId, setBaseId] = useState(base.id);
-  let inputFieldId, checkmarkFieldId, outputFieldId;
+  // const [baseId, setBaseId] = useState(base.id)
+  const baseId = base.id
+  let inputFieldId, checkmarkFieldId, outputFieldId
   try {
-    inputFieldId = globalConfig.get("inputField");
-    checkmarkFieldId = globalConfig.get("checkmarkField");
-    outputFieldId = globalConfig.get("outputField");
+    inputFieldId = globalConfig.get("inputField")
+    checkmarkFieldId = globalConfig.get("checkmarkField")
+    outputFieldId = globalConfig.get("outputField")
   } catch (error) {
-    console.error("Error getting data from globalConfig: ", error);
+    console.error("Error getting data from globalConfig: ", error)
   }
-  const [currentRecordCount, setCurrentRecordCount] = useState(0);
-  const [isBaseChecking, setIsBaseChecking] = useState(false);
-  const [helpVisibility, setHelpVisibility] = useState(false);
-  const [advancedVisibility, setAdvancedVisibility] = useState(false);
-  const [baseAuthenticated, setBaseAuthenticated] = useState(false); // If this base is authenticated
-  const [planActive, setPlanActive] = useState(false); // If the plan is active
-  const [usedTrial, setUsedTrial] = useState(false); // If they already used their trial
+  const [currentRecordCount, setCurrentRecordCount] = useState(0)
+  const [isBaseChecking, setIsBaseChecking] = useState(false)
+  const [helpVisibility, setHelpVisibility] = useState(false)
+  const [advancedVisibility, setAdvancedVisibility] = useState(false)
+  const [baseAuthenticated, setBaseAuthenticated] = useState(false) // If this base is authenticated
+  const [planActive, setPlanActive] = useState(false) // If the plan is active
+  const [usedTrial, setUsedTrial] = useState(false) // If they already used their trial
   // const [displayedRecordCount, setDisplayedRecordCount] = useState(currentRecordCount);
-  const displayedRecordCount = useRef(0);
-  const [disableExtension, setDisableExtension] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isCheckingUserPermissions, setIsCheckingUserPermissions] = useState(false);
-  const [processingDone, setProcessingDone] = useState(false);
-  const [failedTasksCount, setFailedTasksCount] = useState(0);
-  const isCancelled = useRef(false);
-  const [canceling, setCanceling] = useState(false);
-  const [logArray, setLogArray] = useState([]);
-  
-  
+  const displayedRecordCount = useRef(0)
+  const [disableExtension, setDisableExtension] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [isCheckingUserPermissions, setIsCheckingUserPermissions] = useState(false)
+  const [processingDone, setProcessingDone] = useState(false)
+  const [failedTasksCount, setFailedTasksCount] = useState(0)
+  const isCancelled = useRef(false)
+  const [canceling, setCanceling] = useState(false)
+  const [logArray, setLogArray] = useState([])
+
   // Define the email address to be used in the reportProblem function.
-  const emailAddress = "help@tablemate.io";
+  const emailAddress = "help@tablemate.io"
 
   // Debugging flag: If this is set to true, additional debugging information will be logged to the console.
-  let debug = false; // Set to false before releasing
+  const debug = false // Set to false before releasing
 
-  function customLog(...params) {
+  function customLog (...params) {
     if (debug) {
-      console.log(...params);
+      console.log(...params)
     }
-    setLogArray((prevLogs) => [...prevLogs, ...params]);
-  };
+    setLogArray((prevLogs) => [...prevLogs, ...params])
+  }
 
   // Default GPT Amounts
-  const defaultTokens = 500;
-  const defaultTemperature = 1;
-  const defaultTopP = 0.75;
-  const defaultBestOf = 1;
-  const defaultGptModel = "gpt-4";
+  const defaultTokens = 500
+  const defaultTemperature = 1
+  const defaultTopP = 0.75
+  const defaultBestOf = 1
+  const defaultGptModel = "gpt-4"
 
   // State initializations: Here we are setting up state variables for various values that we need to keep track of in our component.
-  const inputTable = base.getTableByIdIfExists(cursor.activeTableId);
+  const inputTable = base.getTableByIdIfExists(cursor.activeTableId)
   const inputView = inputTable
     ? inputTable.getViewByIdIfExists(cursor.activeViewId)
-    : null;
+    : null
   const inputField = inputTable
     ? inputTable.getFieldByIdIfExists(inputFieldId)
-    : null;
+    : null
   const checkmarkField = inputTable
     ? inputTable.getFieldByIdIfExists(checkmarkFieldId)
-    : null;
+    : null
   const outputField = inputTable
     ? inputTable.getFieldByIdIfExists(outputFieldId)
-    : null;
+    : null
 
   // useEffect: This hook checks if the selected fields still exist in the active table, and if not, it resets the related global configurations.
   useEffect(() => {
     // Assuming cursor.activeTable is the currently selected Table object
-    const table = cursor.activeTable;
+    const table = cursor.activeTable
     try {
       if (inputFieldId && !table.getFieldByIdIfExists(inputFieldId)) {
-        globalConfig.setAsync(generateConfigKey(cursor.activeTableId, "inputField"), null);
+        globalConfig.setAsync(generateConfigKey(cursor.activeTableId, "inputField"), null)
       }
       if (outputFieldId && !table.getFieldByIdIfExists(outputFieldId)) {
-        globalConfig.setAsync(generateConfigKey(cursor.activeTableId, "outputField"), null);
+        globalConfig.setAsync(generateConfigKey(cursor.activeTableId, "outputField"), null)
       }
       if (checkmarkFieldId && !table.getFieldByIdIfExists(checkmarkFieldId)) {
-        globalConfig.setAsync(generateConfigKey(cursor.activeTableId, "checkmarkField"), null);
+        globalConfig.setAsync(generateConfigKey(cursor.activeTableId, "checkmarkField"), null)
       }
     } catch (error) {
-      console.error("Error in useEffect hook: ", error);
+      console.error("Error in useEffect hook: ", error)
     }
-  }, [inputFieldId, outputFieldId, checkmarkFieldId]);
-
+  }, [inputFieldId, outputFieldId, checkmarkFieldId])
 
   // checkUserPermissions function: This function checks if the current user has the required permissions to perform CRUD operations.
   const [userPermissions, setUserPermissions] = useState({
     canCreate: false,
     canUpdate: false,
-    canDelete: false,
-  });
+    canDelete: false
+  })
   const checkUserPermissions = async () => {
-    setIsCheckingUserPermissions(true);
+    setIsCheckingUserPermissions(true)
 
     try {
-      const table = base.getTableByIdIfExists(cursor.activeTableId);
-      const canCreate = table.checkPermissionsForCreateRecord();
-      const canUpdate = table.checkPermissionsForUpdateRecord();
-      const canDelete = table.checkPermissionsForDeleteRecord();
+      const table = base.getTableByIdIfExists(cursor.activeTableId)
+      const canCreate = table.checkPermissionsForCreateRecord()
+      const canUpdate = table.checkPermissionsForUpdateRecord()
+      const canDelete = table.checkPermissionsForDeleteRecord()
 
       const permissions = {
         canCreate: canCreate.hasPermission,
         canUpdate: canUpdate.hasPermission,
-        canDelete: canDelete.hasPermission,
-      };
+        canDelete: canDelete.hasPermission
+      }
 
-      customLog("Checking user permissions");
-      customLog("UserPermissions before:", userPermissions);
-      setUserPermissions(permissions);
-      customLog("UserPermissions after:", userPermissions);
+      customLog("Checking user permissions")
+      customLog("UserPermissions before:", userPermissions)
+      setUserPermissions(permissions)
+      customLog("UserPermissions after:", userPermissions)
     } catch (error) {
-      console.error("Error checking user permissions: ", error);
+      console.error("Error checking user permissions: ", error)
     } finally {
-      setIsCheckingUserPermissions(false);
+      setIsCheckingUserPermissions(false)
     }
-  };
-
-  
+  }
 
   // checkBaseAccess function: This function checks if the base has permission to use the extension in the TableMate backend.
   const checkBaseAccess = async () => {
-    setIsBaseChecking(true);
+    setIsBaseChecking(true)
     try {
-      customLog("Checking base access");
-      const checkAccessFunction = httpsCallable(functions, "checkAccess");
-      const result = await checkAccessFunction({ baseId });
+      customLog("Checking base access")
+      const checkAccessFunction = httpsCallable(functions, "checkAccess")
+      const result = await checkAccessFunction({ baseId })
 
       if (result.data.success) {
-        customLog("Access allowed:", result.data.message);
-        // customLog("GPT Key:", result.data.chatGPTKey);
-        // setChatGptApiKey(result.data.chatGPTKey);
-        setCurrentRecordCount(result.data.currentRecordCount);
-        // setDisplayedRecordCount(result.data.currentRecordCount);
-        displayedRecordCount.current = result.data.currentRecordCount;
+        customLog("Access allowed:", result.data.message)
+        setCurrentRecordCount(result.data.currentRecordCount)
+        displayedRecordCount.current = result.data.currentRecordCount
 
-        customLog("Plan active actual status:,", result.data.planActive);
-        customLog("Trying the logic with the plan:,", result.data.planActive !== null);
-        customLog("Received result from checkAccess:", result.data);
-        customLog("BaseAuthenticated before:", baseAuthenticated);
-        customLog("Plan active before:", planActive);
-        customLog("Used trial before:", usedTrial);
+        customLog("Plan active actual status:,", result.data.planActive)
+        customLog("Trying the logic with the plan:,", result.data.planActive !== null)
+        customLog("Received result from checkAccess:", result.data)
+        customLog("BaseAuthenticated before:", baseAuthenticated)
+        customLog("Plan active before:", planActive)
+        customLog("Used trial before:", usedTrial)
         // Set the planActive and usedTrial states based on the result data
-        setPlanActive(result.data.planActive);
-        setUsedTrial(result.data.usedTrial);
-        setBaseAuthenticated(true);
-        customLog("BaseAuthenticated after:", baseAuthenticated);
-        customLog("Plan active after:", planActive);
-        customLog("Used trial after:", usedTrial);
-        // customLog("GPT Key:", result.data.chatGPTKey); // Comment out before releasing
+        setPlanActive(result.data.planActive)
+        setUsedTrial(result.data.usedTrial)
+        setBaseAuthenticated(true)
+        customLog("BaseAuthenticated after:", baseAuthenticated)
+        customLog("Plan active after:", planActive)
+        customLog("Used trial after:", usedTrial)
       } else {
-        console.error("Access denied");
-        setBaseAuthenticated(false);
+        console.error("Access denied")
+        setBaseAuthenticated(false)
       }
     } catch (error) {
-      console.error("Error calling checkAccess function:", error);
-      setBaseAuthenticated(false);
+      console.error("Error calling checkAccess function:", error)
+      setBaseAuthenticated(false)
     } finally {
-      setIsBaseChecking(false);
+      setIsBaseChecking(false)
     }
-  };
+  }
 
   // useEffect: This hook will call both checkBaseAccess and checkUserPermissions on component mount.
   useEffect(() => {
-    customLog("Checking base access and user permissions");
-    checkBaseAccess();
-    checkUserPermissions();
-  }, []);
+    customLog("Checking base access and user permissions")
+    checkBaseAccess()
+    checkUserPermissions()
+  }, [])
 
-  // useEffect: This hook will disable or enable the extension based on base access, user permissions, usedTrial and planActive. 
+  // useEffect: This hook will disable or enable the extension based on base access, user permissions, usedTrial and planActive.
   useEffect(() => {
-    customLog("User permissions, base access, trial usage or plan status changed");
-    customLog("UserPermissions:", userPermissions);
-    customLog("BaseAuthenticated:", baseAuthenticated);
-    customLog("UsedTrial:", usedTrial);
-    customLog("PlanActive:", planActive);
+    customLog("User permissions, base access, trial usage or plan status changed")
+    customLog("UserPermissions:", userPermissions)
+    customLog("BaseAuthenticated:", baseAuthenticated)
+    customLog("UsedTrial:", usedTrial)
+    customLog("PlanActive:", planActive)
 
     if (!baseAuthenticated ||
       !userPermissions.canCreate ||
       !userPermissions.canUpdate ||
       !userPermissions.canDelete ||
       (usedTrial && !planActive)) { // if usedTrial is true and planActive is false
-      customLog("Disabling extension");
-      setDisableExtension(true);
+      customLog("Disabling extension")
+      setDisableExtension(true)
     } else {
-      customLog("Enabling extension");
-      setDisableExtension(false);
+      customLog("Enabling extension")
+      setDisableExtension(false)
     }
-  }, [baseAuthenticated, userPermissions, usedTrial, planActive]); // adding usedTrial and planActive to the dependency array
-
+  }, [baseAuthenticated, userPermissions, usedTrial, planActive]) // adding usedTrial and planActive to the dependency array
 
   // setRecordCount function: This function updates the record count on the server.
   useEffect(() => {
-    globalConfig.setAsync("currentRecordCount", currentRecordCount);
-    customLog("Current record count:", currentRecordCount);
-  }, [currentRecordCount]);
-  const recordsProcessedThisRun = useRef(0);
-  const batchSize = 100;
+    globalConfig.setAsync("currentRecordCount", currentRecordCount)
+    customLog("Current record count:", currentRecordCount)
+  }, [currentRecordCount])
+  const recordsProcessedThisRun = useRef(0)
 
   const setRecordCount = async (recordCount) => {
     try {
-      customLog("Setting record count to:", recordCount);
-      const updateTaskCount = httpsCallable(functions, "updateTaskCount");
-      const result = await updateTaskCount({ baseId, newRecords: recordCount });
+      customLog("Setting record count to:", recordCount)
+      const updateTaskCount = httpsCallable(functions, "updateTaskCount")
+      const result = await updateTaskCount({ baseId, newRecords: recordCount })
       if (result.data.message === "Skipped Stripe update for user without subscription details.") {
         // Handle this case specifically, maybe log a message or update the UI
-        customLog("Received response from updateTaskCount:", result);
-        customLog("Updated record count:", result.data.updatedRecordCount);
-        customLog("Stripe update skipped for user without subscription details.");
-    } else {
-        setCurrentRecordCount(result.data.updatedRecordCount);
-    }
-     
+        customLog("Received response from updateTaskCount:", result)
+        customLog("Updated record count:", result.data.updatedRecordCount)
+        customLog("Stripe update skipped for user without subscription details.")
+      } else {
+        setCurrentRecordCount(result.data.updatedRecordCount)
+      }
     } catch (error) {
-      console.error("Error occurred in setRecordCount:", error);
       if (error.details) {
-        console.error("Detailed error:", error.details);
+        console.error("Detailed error:", error.details)
       }
     }
-  };
-
+  }
 
   // updateTrialStatus function: This function updates the frontend and backend because the trial number has been reached
   const updateTrialStatus = async () => {
-    setUsedTrial(true);
-    const updateTrialStatusFunction = httpsCallable(functions, "updateTrialStatus");
-    const trialStatusResult = await updateTrialStatusFunction({ customerId: baseId, usedTrial: true });
-    customLog("Response from updateTrialStatus:", trialStatusResult);
+    setUsedTrial(true)
+    const updateTrialStatusFunction = httpsCallable(functions, "updateTrialStatus")
+    const trialStatusResult = await updateTrialStatusFunction({ customerId: baseId, usedTrial: true })
+    customLog("Response from updateTrialStatus:", trialStatusResult)
   }
 
   // useEffect: This hook handles the process of updating the server about the number of records processed when the user exits the application.
@@ -278,286 +262,278 @@ const TableMateGPTExtension = () => {
     // Handler for beforeunload/unload events
     const handleExit = async () => {
       // Update the record count on server
-      await setRecordCount(recordsProcessedThisRun.current);
-    };
+      await setRecordCount(recordsProcessedThisRun.current)
+    }
 
     // Add event listeners when the component mounts
-    window.addEventListener('beforeunload', handleExit);
-    window.addEventListener('unload', handleExit);
+    window.addEventListener("beforeunload", handleExit)
+    window.addEventListener("unload", handleExit)
 
     // Remove event listeners when the component unmounts
     return () => {
-      window.removeEventListener('beforeunload', handleExit);
-      window.removeEventListener('unload', handleExit);
-    };
-  }, []);  // Only run this effect once when the component mounts
+      window.removeEventListener("beforeunload", handleExit)
+      window.removeEventListener("unload", handleExit)
+    }
+  }, []) // Only run this effect once when the component mounts
 
+  // Initialize state variables
+  const [maxTokens, setMaxTokens] = useState(defaultTokens)
+  const [gptModel, setGptModel] = useState(defaultGptModel)
+  // eslint-disable-next-line no-unused-vars
+  const [temperature, setTemperature] = useState(defaultTemperature)
+  // eslint-disable-next-line no-unused-vars
+  const [topP, setTopP] = useState(defaultTopP)
+  // eslint-disable-next-line no-unused-vars
+  const [bestOf, setBestOf] = useState(defaultBestOf)
 
- // Initialize state variables
- const [maxTokens, setMaxTokens] = useState(defaultTokens);
- const [gptModel, setGptModel] = useState(defaultGptModel);
- const [temperature, setTemperature] = useState(defaultTemperature);
- const [topP, setTopP] = useState(defaultTopP);
- const [bestOf, setBestOf] = useState(defaultBestOf);
- 
- 
   useEffect(() => {
     try {
-      const localGptModel = globalConfig.get(generateConfigKey(cursor.activeTableId, "gptModel")) || defaultGptModel;
-      const localMaxTokens = globalConfig.get(generateConfigKey(cursor.activeTableId, "maxTokens")) || defaultTokens;
-      const localTemperature = globalConfig.get(generateConfigKey(cursor.activeTableId, "temperature")) || defaultTemperature;
-      const localTopP = globalConfig.get(generateConfigKey(cursor.activeTableId, "topP")) || defaultTopP;
-      const localBestOf = globalConfig.get(generateConfigKey(cursor.activeTableId, "bestOf")) || defaultBestOf;
-  
-      setGptModel(localGptModel);
-      setMaxTokens(localMaxTokens);
-      setTemperature(localTemperature);
-      setTopP(localTopP);
-      setBestOf(localBestOf);
+      const localGptModel = globalConfig.get(generateConfigKey(cursor.activeTableId, "gptModel")) || defaultGptModel
+      const localMaxTokens = globalConfig.get(generateConfigKey(cursor.activeTableId, "maxTokens")) || defaultTokens
+      const localTemperature = globalConfig.get(generateConfigKey(cursor.activeTableId, "temperature")) || defaultTemperature
+      const localTopP = globalConfig.get(generateConfigKey(cursor.activeTableId, "topP")) || defaultTopP
+      const localBestOf = globalConfig.get(generateConfigKey(cursor.activeTableId, "bestOf")) || defaultBestOf
+
+      setGptModel(localGptModel)
+      setMaxTokens(localMaxTokens)
+      setTemperature(localTemperature)
+      setTopP(localTopP)
+      setBestOf(localBestOf)
     } catch (error) {
-      console.error("An error occurred:", error);
+      console.error("An error occurred:", error)
     }
-  }, [cursor.activeTableId, globalConfig]);
-  
-  
-  async function sendToGPT() {
+  }, [cursor.activeTableId, globalConfig])
 
-    isCancelled.current = false;
-    let allRecordsAlreadyProcessed = false; // Add this line to introduce the flag
+  async function sendToGPT () {
+    isCancelled.current = false
+    const allRecordsAlreadyProcessed = false // Add this line to introduce the flag
 
-    const inputFieldKey = generateConfigKey(cursor.activeTableId, "inputField");
-    const outputFieldKey = generateConfigKey(cursor.activeTableId, "outputField");
-    const checkmarkFieldKey = generateConfigKey(cursor.activeTableId, "checkmarkField");
+    const inputFieldKey = generateConfigKey(cursor.activeTableId, "inputField")
+    const outputFieldKey = generateConfigKey(cursor.activeTableId, "outputField")
+    const checkmarkFieldKey = generateConfigKey(cursor.activeTableId, "checkmarkField")
 
-    const input = globalConfig.get(inputFieldKey);
-    const output = globalConfig.get(outputFieldKey);
-    const checkmark = globalConfig.get(checkmarkFieldKey);
+    const input = globalConfig.get(inputFieldKey)
+    const output = globalConfig.get(outputFieldKey)
+    const checkmark = globalConfig.get(checkmarkFieldKey)
 
-    const inputRecordsResult = await inputView.selectRecordsAsync();
-    const outputRecordsResult = await inputView.selectRecordsAsync();
-    const inputRecords = inputRecordsResult.records;
-    const outputRecords = outputRecordsResult.records;
+    const inputRecordsResult = await inputView.selectRecordsAsync()
+    const outputRecordsResult = await inputView.selectRecordsAsync()
+    const inputRecords = inputRecordsResult.records
+    const outputRecords = outputRecordsResult.records
 
     const temperatureValue =
       globalConfig.get(
         generateConfigKey(cursor.activeTableId, "temperature")
-      ) || defaultTemperature;
-    customLog("temperatureValue:", temperatureValue);
-    const temperature = parseFloat(temperatureValue);
+      ) || defaultTemperature
+    customLog("temperatureValue:", temperatureValue)
+    const temperature = parseFloat(temperatureValue)
 
     const topPValue =
       globalConfig.get(generateConfigKey(cursor.activeTableId, "topP")) ||
-      defaultTopP;
-    customLog("topP:", topPValue);
-    const topP = parseFloat(topPValue);
+      defaultTopP
+    customLog("topP:", topPValue)
+    const topP = parseFloat(topPValue)
 
     const bestOfValue =
       globalConfig.get(generateConfigKey(cursor.activeTableId, "bestOf")) ||
-      defaultBestOf;
-    customLog("bestOf:", bestOfValue);
-    const bestOf = parseFloat(bestOfValue);
+      defaultBestOf
+    customLog("bestOf:", bestOfValue)
+    const bestOf = parseFloat(bestOfValue)
 
     if (
       !inputTable.getFieldByIdIfExists(input) ||
       !inputTable.getFieldByIdIfExists(output) ||
       !inputTable.getFieldByIdIfExists(checkmark)
     ) {
-      alert("Please select the input, output, and checkmark fields.");
-      return;
+      alert("Please select the input, output, and checkmark fields.")
+      return
     }
 
     // Checking for edge cases to make alerts
-    const recordsToProcess = inputRecords.filter(record => record.getCellValue(checkmark) === true || record.getCellValue(checkmark) === 1);
-    const recordsAlreadyProcessed = inputRecords.filter(record => record.getCellValue(output));
-    const recordsInvalidCheckmark = inputRecords.filter(record => ![true, false, 1, 0, null].includes(record.getCellValue(checkmark)));
-  
-    if(recordsInvalidCheckmark.length > 0) {
-      alert("The 'Selected Rows' field may use a formula field, but must result in 1 or 0 result.");
-      return;
-    }
-  
-    if (recordsToProcess.length === 0) {
-      alert("No rows have their checkmark checked to be processed.");
-      return;
+    const recordsToProcess = inputRecords.filter(record => record.getCellValue(checkmark) === true || record.getCellValue(checkmark) === 1)
+    const recordsInvalidCheckmark = inputRecords.filter(record => ![true, false, 1, 0, null].includes(record.getCellValue(checkmark)))
+
+    if (recordsInvalidCheckmark.length > 0) {
+      alert("The 'Selected Rows' field may use a formula field, but must result in 1 or 0 result.")
+      return
     }
 
-    const limit = pLimit(10); // Set the concurrency limit.
-    setIsLoading(true);
+    if (recordsToProcess.length === 0) {
+      alert("No rows have their checkmark checked to be processed.")
+      return
+    }
+
+    const limit = pLimit(10) // Set the concurrency limit.
+    setIsLoading(true)
 
     const processRecord = async (inputRecord) => {
       // If the user presses the cancel button while running the tasks
       if (isCancelled.current) {
-        return;
+        return
       }
 
       // Check if the selected fields still exist in the table
-      const checkmarkValue = inputRecord.getCellValue(checkmark);
-      const outputRecord = outputRecords.find((record) => record.id === inputRecord.id);
-      const outputResponseValue = outputRecord.getCellValue(output);
-      const inputResponseValue = inputRecord.getCellValue(input);
+      const checkmarkValue = inputRecord.getCellValue(checkmark)
+      const outputRecord = outputRecords.find((record) => record.id === inputRecord.id)
+      const outputResponseValue = outputRecord.getCellValue(output)
+      const inputResponseValue = inputRecord.getCellValue(input)
 
       // If the record is already processed, simply return from the function
       if (checkmarkValue === true && outputResponseValue) {
-        return;
+        return
       }
 
       if ((checkmarkValue === true || checkmarkValue === 1) && !outputResponseValue && inputResponseValue) {
-        const prompt = inputRecord.getCellValue(input);
+        const prompt = inputRecord.getCellValue(input)
         const requestBody = {
-          prompt: prompt,
+          prompt,
           max_tokens: maxTokens,
           model: gptModel,
           n: bestOf,
           stop: null,
-          temperature: temperature,
+          temperature,
           top_p: topP,
-          baseId: baseId,
-        };
-        
+          baseId
+        }
 
         try {
-          customLog("Starting GPT tasks");
-          customLog('Sending request to GPT with parameters:', {
-            prompt: prompt,
+          customLog("Starting GPT tasks")
+          customLog("Sending request to GPT with parameters:", {
+            prompt,
             max_tokens: maxTokens,
             model: gptModel,
             n: bestOf,
             stop: null,
-            temperature: temperature,
+            temperature,
             top_p: topP,
-            baseId: baseId,
-          });
-          const callGPTFunction = httpsCallable(functions, 'callGPT');
+            baseId
+          })
+          const callGPTFunction = httpsCallable(functions, "callGPT")
 
-          const response = await callGPTFunction(requestBody);
+          const response = await callGPTFunction(requestBody)
           // If the user presses the cancel button while running the tasks
           if (isCancelled.current) {
-            return;
+            return
           }
-          const chatGPTResponse = response.data.trim();
-          customLog("Received response from GPT:", chatGPTResponse);
+          const chatGPTResponse = response.data.trim()
+          customLog("Received response from GPT:", chatGPTResponse)
 
-          await inputTable.updateRecordAsync(outputRecord, { [output]: chatGPTResponse });
+          await inputTable.updateRecordAsync(outputRecord, { [output]: chatGPTResponse })
           // If the user presses the cancel button while running the tasks
           if (isCancelled.current) {
-            return;
+            return
           }
-          // setDisplayedRecordCount(prevCount => prevCount + 1);
           displayedRecordCount.current++
-          recordsProcessedThisRun.current++;
+          recordsProcessedThisRun.current++
 
           // Check if totalRecordCount is more than or equal to 50 before starting a new task
           if (!planActive && displayedRecordCount.current >= 50) {
-            customLog("Trial limit reached");
-            // setDisableExtension(true);
-            updateTrialStatus();
-            isCancelled.current = true;
-            return;
+            customLog("Trial limit reached")
+            updateTrialStatus()
+            isCancelled.current = true
           }
-
         } catch (error) {
-          console.error("Error calling GPT function:", error); // Logs the error
-          if (error.code === 'permission-denied') { // Cloud Function error for unauthorized (401) errors
-            alert("The GPT API Key saved on TableMate seems to be incorrect or no longer active.");
+          console.error("Error calling GPT function:", error) // Logs the error
+          if (error.code === "permission-denied") { // Cloud Function error for unauthorized (401) errors
+            alert("The GPT API Key saved on TableMate seems to be incorrect or no longer active.")
           } else {
-            setFailedTasksCount(prevCount => prevCount + 1);
+            setFailedTasksCount(prevCount => prevCount + 1)
           }
         }
-        
-
       }
-    };
+    }
 
     try {
-      const tasks = inputRecords.map((inputRecord) => limit(() => processRecord(inputRecord)));
-      await Promise.all(tasks);
+      const tasks = inputRecords.map((inputRecord) => limit(() => processRecord(inputRecord)))
+      await Promise.all(tasks)
 
       // If no records were processed in this run, it means all marked records were already processed
       if (recordsProcessedThisRun.current === 0) {
-        setIsLoading(false);
-        alert("All records with checkmarks have already been processed.");
-        return;
+        setIsLoading(false)
+        alert("All records with checkmarks have already been processed.")
+        return
       }
     } catch (error) {
       if (error.message === "There was an error") {
-        alert(error.message);
-        return;
+        alert(error.message)
+        return
       } else {
-        console.error(error);
-        // handle other errors
+        console.error(error)
       }
     }
 
     // If Canceled, update the UI
     if (isCancelled.current) {
-      isCancelled.current = false;
-      setIsLoading(false);
-      setCanceling(false);
-      return;
+      isCancelled.current = false
+      setIsLoading(false)
+      setCanceling(false)
+      return
     }
 
     // After all tasks have been completed, we should ensure that the final count has been updated on the server
     if (recordsProcessedThisRun.current > 0) {
       // After all tasks have been completed, we should ensure that the final count has been updated on the server
-      await setRecordCount(recordsProcessedThisRun.current);
-      customLog("All tasks have been completed.");
+      await setRecordCount(recordsProcessedThisRun.current)
+      customLog("All tasks have been completed.")
     } else {
       if (!allRecordsAlreadyProcessed) { // Add this condition to check the flag
-        alert("Unable to update the total records processed.");
+        alert("Unable to update the total records processed.")
       }
     }
 
-    customLog("All tasks have been completed.");
-    setIsLoading(false);
-    setProcessingDone(true);
+    customLog("All tasks have been completed.")
+    setIsLoading(false)
+    setProcessingDone(true)
   }
 
   // useEffect: This hook clears the failed tasks count 5 seconds after loading has finished and there are failed tasks.
   useEffect(() => {
-    let timerId;
+    let timerId
 
     if (!isLoading && failedTasksCount > 0) {
-      timerId = setTimeout(() => setFailedTasksCount(0), 5000);
+      timerId = setTimeout(() => setFailedTasksCount(0), 5000)
     }
 
     return () => {
       if (timerId) {
-        clearTimeout(timerId);
+        clearTimeout(timerId)
       }
-    };
-  }, [isLoading, failedTasksCount]);
+    }
+  }, [isLoading, failedTasksCount])
 
   // handleCancel function: If the user pressed the button to cancel the run, it stops the tasks
-  function handleCancel() {
-    customLog("The job was canceled by the cancel button.");
-    isCancelled.current = true;
-    setCanceling(true);
+  function handleCancel () {
+    customLog("The job was canceled by the cancel button.")
+    isCancelled.current = true
+    setCanceling(true)
   }
 
   // isFieldVisibleInView function: This function checks if a certain field is visible in the current view.
+  // eslint-disable-next-line no-unused-vars
   const isFieldVisibleInView = (field) => {
-    // if (!field || !view) return false;
-
     // Check if the field is included in the visibleFields array
-    return true;
-  };
+    return true
+  }
 
   // generateConfigKey function: This function generates a key for storing table-specific configurations in the globalConfig.
   const generateConfigKey = (tableId, fieldKey) => {
-    return `table-${tableId}-${fieldKey}`;
-  };
+    return `table-${tableId}-${fieldKey}`
+  }
 
   // Loader component: This is a small component that displays a loading spinner if the `loading` prop is true.
-  function Loader({ loading }) {
-    return loading ? (
+  // eslint-disable-next-line react/prop-types
+  function Loader ({ loading }) {
+    return loading
+      ? (
       <Box marginRight={2} marginTop={1}>
         <img src="https://uploads-ssl.webflow.com/6412470803111e42c7b1d73b/65662d24ebd1a8cb7e48200f_daisy.gif" alt="Loading..." width="17px" height="17px" />
       </Box>
-    ) : null;
+        )
+      : null
   }
 
   // reportProblem: Gathers user/system info, prepares an email to support, and opens a mailto link.
-  function reportProblem() {
+  function reportProblem () {
     const userInfo = {
       "Base ID": baseId,
       "Input Field ID": inputFieldId,
@@ -576,27 +552,27 @@ const TableMateGPTExtension = () => {
       "Is Checking User Permissions?": isCheckingUserPermissions,
       "Is Processing Done?": processingDone,
       "How many tasks failed?": failedTasksCount,
-      "Is the task canceled?": isCancelled,
-    };
+      "Is the task canceled?": isCancelled
+    }
 
-    const encodedLogs = encodeURIComponent(logArray.join('\n'));
-    const userInfoString = encodeURIComponent(JSON.stringify(userInfo, null, 2));
-    const issueDescription = "We're sorry you're having an issue. Please describe the problem and include any screenshots that may be helpful. We'll do our best to resolve it and get you back to work! Thanks for using TableMate. \n\n";
-    const consoleLogLabel = "\n\nConsole log:\n";
-    const userInfoLabel = "\n\nUser Info:\n";
+    const encodedLogs = encodeURIComponent(logArray.join("\n"))
+    const userInfoString = encodeURIComponent(JSON.stringify(userInfo, null, 2))
+    const issueDescription = "We're sorry you're having an issue. Please describe the problem and include any screenshots that may be helpful. We'll do our best to resolve it and get you back to work! Thanks for using TableMate. \n\n"
+    const consoleLogLabel = "\n\nConsole log:\n"
+    const userInfoLabel = "\n\nUser Info:\n"
 
     // We're going to remove getAuthenticatedUserId() as per your request
-    const subject = `Help with Tablemate extension: Base: ${baseId}`;
-    const mailtoLink = `mailto:${emailAddress}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(issueDescription)}${encodeURIComponent(userInfoLabel)}${userInfoString}${encodeURIComponent(consoleLogLabel)}${encodedLogs}`;
+    const subject = `Help with Tablemate extension: Base: ${baseId}`
+    const mailtoLink = `mailto:${emailAddress}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(issueDescription)}${encodeURIComponent(userInfoLabel)}${userInfoString}${encodeURIComponent(consoleLogLabel)}${encodedLogs}`
 
-    window.location.href = mailtoLink;
+    window.location.href = mailtoLink
   }
 
   const options = [
-    { value: 'gpt-4', label: 'GPT-4 (most sophisticated)' },
-    { value: 'gpt-3-turbo', label: 'GPT-3 Turbo (fastest)' },
-    { value: 'gpt-3.5-turbo-16k', label: 'GPT-3.5 Turbo 16K (fast and large output)' },
-  ];
+    { value: "gpt-4", label: "GPT-4 (most sophisticated)" },
+    { value: "gpt-3-turbo", label: "GPT-3 Turbo (fastest)" },
+    { value: "gpt-3.5-turbo-16k", label: "GPT-3.5 Turbo 16K (fast and large output)" }
+  ]
 
   // UI component: This is the Airtable extension frontend UI
   return (
@@ -611,7 +587,6 @@ const TableMateGPTExtension = () => {
             paddingTop={5}
             paddingBottom={5}
           >
-            {/* Add a message to prompt the user to set up */}
             <Text
               fontSize={6}
               marginBottom={2}
@@ -658,20 +633,16 @@ const TableMateGPTExtension = () => {
               paddingTop={5}
               paddingBottom={5}
             >
-              {/* Add a message to prompt the user to set up */}
               <Text fontSize={6} marginBottom={2} fontWeight="bold">
                 Limited Base Permissions
               </Text>
-              {/* <Text fontSize={4} marginBottom={3}>
-                  You need editor or creator permissions for this Airtable Base
-                </Text> */}
               <Text fontSize={2}>
                 Ask the Base owner for editor or creator permissions to use this
                 extension.
               </Text>
             </Box>
           </Box>
-        )}
+      )}
       {usedTrial && !planActive && (
         <Box padding={3} paddingBottom={0}>
           <Box
@@ -682,7 +653,6 @@ const TableMateGPTExtension = () => {
             paddingTop={5}
             paddingBottom={5}
           >
-            {/* Add a message to prompt the user to set up */}
             <Text fontSize={6} marginBottom={2} fontWeight="bold">
               Sign up for a Subscription
             </Text>
@@ -708,8 +678,6 @@ const TableMateGPTExtension = () => {
       <Box padding={3} opacity={!disableExtension ? "1" : "0.4"}>
         <Box display="flex" alignItems="center" marginTop={0} marginBottom={2}>
           <Box display="flex" alignItems="center" width="100%">
-            {/* <Img src={logo} alt="Logo"/> */}
-            {/* <Img src={require('../assets/logo.png')} alt="Logo" /> */}
             <Text
               fontSize="3"
               paddingLeft={1}
@@ -720,16 +688,17 @@ const TableMateGPTExtension = () => {
             >
               TableMate GPT
             </Text>
-            {/* For eventual error handling and service status */}
-            {disableExtension ? (
+            {disableExtension
+              ? (
               <Box backgroundColor="" padding={1} borderRadius={3}>
                 <Text style={{ color: "#11921e" }}></Text>
               </Box>
-            ) : (
+                )
+              : (
               <Box backgroundColor="" padding={1} borderRadius={3}>
                 <Text style={{ color: "#c4c7cd" }}></Text>
               </Box>
-            )}
+                )}
           </Box>
           <Button
             icon={helpVisibility ? "up" : "down"}
@@ -751,7 +720,7 @@ const TableMateGPTExtension = () => {
             fontStyle="italic"
           >
             Facing an issue? Reload the extension by clicking the dropdown to
-            the top-left of the extension and pressing "Reload extension".
+            the top-left of the extension and pressing &quot;Reload extension&quot;.
           </Text>
         )}
         <Box
@@ -772,9 +741,9 @@ const TableMateGPTExtension = () => {
                   padding={3}
                   fontStyle="italic"
                 >
-                  1. Prompt: Select a field from which you'd like to send a
+                  1. Prompt: Select a field from which you&apos;d like to send a
                   prompt to GPT. This can be a Single Line Text, Multi-Line
-                  Text, or Formula field. We recommend using the "concatenate()"
+                  Text, or Formula field. We recommend using the &quot;concatenate()&quot;
                   formula to construct a prompt using several variables from
                   your column data. See our tutorials for more info and tips.
                 </Text>
@@ -790,7 +759,7 @@ const TableMateGPTExtension = () => {
                   "singleLineText",
                   "multilineText",
                   "formula",
-                  "richText",
+                  "richText"
                 ]}
               />
               {!isFieldVisibleInView(inputField, inputView) && (
@@ -813,7 +782,7 @@ const TableMateGPTExtension = () => {
                   padding={3}
                   fontStyle="italic"
                 >
-                  2. Response: Select a field from which you'd like to receive
+                  2. Response: Select a field from which you&apos;d like to receive
                   the response from GPT. This can be a Single Line Text, or
                   Multi-Line Text field.
                 </Text>
@@ -847,7 +816,7 @@ const TableMateGPTExtension = () => {
                   fontStyle="italic"
                 >
                   3. Selected Rows: Select a checkmark or formula field which
-                  will output "True", "False", 1, or 0 to indicate which rows to
+                  will output &quot;True&quot;, &quot;False&quot;, 1, or 0 to indicate which rows to
                   send to GPT.
                 </Text>
               )}
@@ -898,12 +867,12 @@ const TableMateGPTExtension = () => {
                 value={gptModel}
                 options={options}
                 onChange={(newValue) => {
-                  customLog("Selected Value:", newValue);
+                  customLog("Selected Value:", newValue)
                   globalConfig.setAsync(
                     generateConfigKey(cursor.activeTableId, "gptModel"),
                     newValue
-                  );
-                  setGptModel(newValue);
+                  )
+                  setGptModel(newValue)
                 }}
                 disabled={disableExtension}
               />
@@ -919,10 +888,10 @@ const TableMateGPTExtension = () => {
                       ) || ""
                     }
                     onChange={(e) => {
-                      const newValue = e.target.value;
-                      globalConfig.setAsync(generateConfigKey(cursor.activeTableId, "maxTokens"), newValue);
-                      setMaxTokens(newValue);
-                    }}                    
+                      const newValue = e.target.value
+                      globalConfig.setAsync(generateConfigKey(cursor.activeTableId, "maxTokens"), newValue)
+                      setMaxTokens(newValue)
+                    }}
                     placeholder={`${defaultTokens}`}
                     disabled={disableExtension}
                   />
@@ -938,9 +907,9 @@ const TableMateGPTExtension = () => {
                       ) || ""
                     }
                     onChange={(e) => {
-                      const newValue = e.target.value;
-                      globalConfig.setAsync(generateConfigKey(cursor.activeTableId, "temperature"), newValue);
-                      setTemperature(newValue);
+                      const newValue = e.target.value
+                      globalConfig.setAsync(generateConfigKey(cursor.activeTableId, "temperature"), newValue)
+                      setTemperature(newValue)
                     }}
                     placeholder={`${defaultTemperature}`}
                     disabled={disableExtension}
@@ -959,9 +928,9 @@ const TableMateGPTExtension = () => {
                       ) || ""
                     }
                     onChange={(e) => {
-                      const newValue = e.target.value;
-                      globalConfig.setAsync(generateConfigKey(cursor.activeTableId, "topP"), newValue);
-                      setTopP(newValue);
+                      const newValue = e.target.value
+                      globalConfig.setAsync(generateConfigKey(cursor.activeTableId, "topP"), newValue)
+                      setTopP(newValue)
                     }}
                     placeholder={`${defaultTopP}`}
                     disabled={disableExtension}
@@ -978,9 +947,9 @@ const TableMateGPTExtension = () => {
                       ) || ""
                     }
                     onChange={(e) => {
-                      const newValue = e.target.value;
-                      globalConfig.setAsync(generateConfigKey(cursor.activeTableId, "bestOf"), newValue);
-                      setBestOf(newValue);
+                      const newValue = e.target.value
+                      globalConfig.setAsync(generateConfigKey(cursor.activeTableId, "bestOf"), newValue)
+                      setBestOf(newValue)
                     }}
                     placeholder={`${defaultBestOf}`}
                     disabled={disableExtension}
@@ -997,8 +966,8 @@ const TableMateGPTExtension = () => {
                 padding={3}
                 fontStyle="italic"
               >
-                When all of the above fields are filled out, you've written your
-                GPT prompts into the Input Field, and you've checked off the
+                When all of the above fields are filled out, you&apos;ve written your
+                GPT prompts into the Input Field, and you&apos;ve checked off the
                 corresponding rows with the Checkmark Field, press Run.
               </Text>
             )}
@@ -1025,8 +994,8 @@ const TableMateGPTExtension = () => {
                     {canceling
                       ? "Canceling..."
                       : planActive
-                      ? `${displayedRecordCount.current} completed`
-                      : `${displayedRecordCount.current}/50 free tasks`}
+                        ? `${displayedRecordCount.current} completed`
+                        : `${displayedRecordCount.current}/50 free tasks`}
                   </Text>
                 </Box>
 
@@ -1055,7 +1024,6 @@ const TableMateGPTExtension = () => {
               </Text>
               <Text
                 marginBottom={3}
-                // backgroundColor="#F9F9F9"
                 fontStyle="italic"
               >
                 Sorry for the trouble. Click below to auto-generate a help
@@ -1069,7 +1037,7 @@ const TableMateGPTExtension = () => {
                   cursor: "pointer",
                   color: "007bff",
                   whiteSpace: "nowrap",
-                  display: "inline-block",
+                  display: "inline-block"
                 }}
               >
                 Send a help email to support
@@ -1157,7 +1125,7 @@ const TableMateGPTExtension = () => {
         </Box>
       </Box>
     </>
-  );
-};
+  )
+}
 
-initializeBlock(() => <TableMateGPTExtension />);
+initializeBlock(() => <TableMateGPTExtension />)
