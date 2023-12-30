@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable max-len */
 // Airtable Extension: This component interfaces with Airtable to enable the TableMateGPTExtension capabilities. It mainly performs the interaction with the TableMate backend and with the GPT-3 API.
 import React, { useState, useEffect, useRef } from "react"
@@ -18,21 +19,22 @@ import "./styles.css"
 import pLimit from "p-limit"
 
 import { initializeApp } from "firebase/app"
+// import { getAnalytics } from "firebase/analytics";
 import { getFunctions, httpsCallable } from "firebase/functions"
 
 // Firebase configuration: These are the settings required to establish a connection to the Firebase backend.
 const firebaseConfig = {
-  apiKey: "AIzaSyC-O5CP1WNxAdk-EUJfLDCUOAG_DS738XU",
-  authDomain: "tablemateendpoint.firebaseapp.com",
-  databaseURL: "https://tablemateendpoint-default-rtdb.firebaseio.com",
-  projectId: "tablemateendpoint",
-  storageBucket: "tablemateendpoint.appspot.com",
-  messagingSenderId: "1040718631728",
-  appId: "1:1040718631728:web:6fdc289865fc7e8cd7aef5",
-  measurementId: "G-WM5NX0QRTX"
-}
+  apiKey: "AIzaSyDDGxK9hAWDZuMZnsKodF6U5CdVtRyOaQ8",
+  authDomain: "tablematetesting.firebaseapp.com",
+  projectId: "tablematetesting",
+  storageBucket: "tablematetesting.appspot.com",
+  messagingSenderId: "94536164425",
+  appId: "1:94536164425:web:566d0b0def93b58a3e8b98",
+  measurementId: "G-CPYPF654FB"
+};
 
 const app = initializeApp(firebaseConfig)
+// const analytics = getAnalytics(app);
 const functions = getFunctions(app)
 
 // TableMateGPTExtension component: This is the primary React component that orchestrates the whole process.
@@ -122,7 +124,7 @@ const TableMateGPTExtension = () => {
     } catch (error) {
       console.error("Error in useEffect hook: ", error)
     }
-  }, [inputFieldId, outputFieldId, checkmarkFieldId])
+  }, [inputFieldId, outputFieldId, checkmarkFieldId, cursor.activeTable, cursor.activeTableId, globalConfig])
 
   // checkUserPermissions function: This function checks if the current user has the required permissions to perform CRUD operations.
   const [userPermissions, setUserPermissions] = useState({
@@ -199,7 +201,7 @@ const TableMateGPTExtension = () => {
     customLog("Checking base access and user permissions")
     checkBaseAccess()
     checkUserPermissions()
-  }, [])
+  }, [checkBaseAccess, checkUserPermissions, customLog])
 
   // useEffect: This hook will disable or enable the extension based on base access, user permissions, usedTrial and planActive.
   useEffect(() => {
@@ -220,13 +222,13 @@ const TableMateGPTExtension = () => {
       customLog("Enabling extension")
       setDisableExtension(false)
     }
-  }, [baseAuthenticated, userPermissions, usedTrial, planActive]) // adding usedTrial and planActive to the dependency array
+  }, [baseAuthenticated, userPermissions, usedTrial, planActive, customLog]) // adding usedTrial and planActive to the dependency array
 
   // setRecordCount function: This function updates the record count on the server.
   useEffect(() => {
     globalConfig.setAsync("currentRecordCount", currentRecordCount)
     customLog("Current record count:", currentRecordCount)
-  }, [currentRecordCount])
+  }, [currentRecordCount, customLog, globalConfig])
   const recordsProcessedThisRun = useRef(0)
 
   const setRecordCount = async (recordCount) => {
@@ -274,7 +276,7 @@ const TableMateGPTExtension = () => {
       window.removeEventListener("beforeunload", handleExit)
       window.removeEventListener("unload", handleExit)
     }
-  }, []) // Only run this effect once when the component mounts
+  }, [setRecordCount]) // Only run this effect once when the component mounts
 
   // Initialize state variables
   const [maxTokens, setMaxTokens] = useState(defaultTokens)
