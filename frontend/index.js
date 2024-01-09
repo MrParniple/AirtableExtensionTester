@@ -76,7 +76,7 @@ const TableMateGPTExtension = () => {
   const emailAddress = "help@tablemate.io"
 
   // Debugging flag: If this is set to true, additional debugging information will be logged to the console.
-  const debug = false // Set to false before releasing
+  const debug = true // Set to false before releasing
 
   function customLog (...params) {
     if (debug) {
@@ -124,7 +124,8 @@ const TableMateGPTExtension = () => {
     } catch (error) {
       console.error("Error in useEffect hook: ", error)
     }
-  }, [inputFieldId, outputFieldId, checkmarkFieldId, cursor.activeTable, cursor.activeTableId, globalConfig])
+  }, [inputFieldId, outputFieldId, checkmarkFieldId])
+  //}, [inputFieldId, outputFieldId, checkmarkFieldId, cursor.activeTable, cursor.activeTableId, globalConfig])
 
   // checkUserPermissions function: This function checks if the current user has the required permissions to perform CRUD operations.
   const [userPermissions, setUserPermissions] = useState({
@@ -201,7 +202,8 @@ const TableMateGPTExtension = () => {
     customLog("Checking base access and user permissions")
     checkBaseAccess()
     checkUserPermissions()
-  }, [checkBaseAccess, checkUserPermissions, customLog])
+  }, [])
+  //}, [checkBaseAccess, checkUserPermissions])
 
   // useEffect: This hook will disable or enable the extension based on base access, user permissions, usedTrial and planActive.
   useEffect(() => {
@@ -222,13 +224,15 @@ const TableMateGPTExtension = () => {
       customLog("Enabling extension")
       setDisableExtension(false)
     }
-  }, [baseAuthenticated, userPermissions, usedTrial, planActive, customLog]) // adding usedTrial and planActive to the dependency array
+  }, [baseAuthenticated, userPermissions, usedTrial, planActive]) // adding usedTrial and planActive to the dependency array
+  //}, [baseAuthenticated, userPermissions, usedTrial, planActive]) // adding usedTrial and planActive to the dependency array
 
   // setRecordCount function: This function updates the record count on the server.
   useEffect(() => {
     globalConfig.setAsync("currentRecordCount", currentRecordCount)
     customLog("Current record count:", currentRecordCount)
-  }, [currentRecordCount, customLog, globalConfig])
+  }, [currentRecordCount])
+  // }, [currentRecordCount, globalConfig])
   const recordsProcessedThisRun = useRef(0)
 
   const setRecordCount = async (recordCount) => {
@@ -276,7 +280,8 @@ const TableMateGPTExtension = () => {
       window.removeEventListener("beforeunload", handleExit)
       window.removeEventListener("unload", handleExit)
     }
-  }, [setRecordCount]) // Only run this effect once when the component mounts
+  }, []) // Only run this effect once when the component mounts
+  // }, [setRecordCount]) // Only run this effect once when the component mounts  
 
   // Initialize state variables
   const [maxTokens, setMaxTokens] = useState(defaultTokens)
@@ -307,7 +312,9 @@ const TableMateGPTExtension = () => {
   }, [cursor.activeTableId, globalConfig])
 
   async function sendToGPT () {
+    recordsProcessedThisRun.current = 0;
     isCancelled.current = false
+    let errors = []; // Array to collect errors
     const allRecordsAlreadyProcessed = false // Add this line to introduce the flag
 
     const inputFieldKey = generateConfigKey(cursor.activeTableId, "inputField")
@@ -435,12 +442,9 @@ const TableMateGPTExtension = () => {
             isCancelled.current = true
           }
         } catch (error) {
-          console.error("Error calling GPT function:", error) // Logs the error
-          if (error.code === "permission-denied") { // Cloud Function error for unauthorized (401) errors
-            alert("The GPT API Key saved on TableMate seems to be incorrect or no longer active.")
-          } else {
-            setFailedTasksCount(prevCount => prevCount + 1)
-          }
+          console.error("Error calling GPT function:", error);
+          errors.push(error);
+          throw error;
         }
       }
     }
@@ -456,11 +460,17 @@ const TableMateGPTExtension = () => {
         return
       }
     } catch (error) {
-      if (error.message === "There was an error") {
-        alert(error.message)
-        return
-      } else {
-        console.error(error)
+      // Error handling when any record processing fails
+      setIsLoading(false);
+      if (errors.length > 0) {
+        // Handle the first error
+        const firstError = errors[0];
+        if (firstError.code === "permission-denied") {
+            alert("The GPT API Key saved on TableMate seems to be incorrect or no longer active.");
+        } else {
+            alert(`${firstError.message || "An unknown error occurred."}`);
+        }
+        return; // Exit the function early
       }
     }
 
@@ -475,7 +485,9 @@ const TableMateGPTExtension = () => {
     // After all tasks have been completed, we should ensure that the final count has been updated on the server
     if (recordsProcessedThisRun.current > 0) {
       // After all tasks have been completed, we should ensure that the final count has been updated on the server
+      customLog("Incrementing recordsProcessedThisRun, new value:", recordsProcessedThisRun.current);
       await setRecordCount(recordsProcessedThisRun.current)
+      customLog("Sending recordsProcessedThisRun to setRecordCount:", recordsProcessedThisRun.current);
       customLog("All tasks have been completed.")
     } else {
       if (!allRecordsAlreadyProcessed) { // Add this condition to check the flag
@@ -503,12 +515,23 @@ const TableMateGPTExtension = () => {
     }
   }, [isLoading, failedTasksCount])
 
-  // handleCancel function: If the user pressed the button to cancel the run, it stops the tasks
-  function handleCancel () {
-    customLog("The job was canceled by the cancel button.")
-    isCancelled.current = true
-    setCanceling(true)
+  // handleCancel function: If the user pressed the button to cancel the run, it stops the tasks and updates the task count on the server.
+function handleCancel () {
+  customLog("The job was canceled by the cancel button.");
+  isCancelled.current = true;
+  setCanceling(true);
+
+  // Check if any records have been processed and update the server
+  if (recordsProcessedThisRun.current > 0) {
+      customLog("Updating server with processed record count:", recordsProcessedThisRun.current);
+      setRecordCount(recordsProcessedThisRun.current).then(() => {
+          customLog("Server updated with canceled task count.");
+      }).catch(error => {
+          console.error("Failed to update server with canceled task count:", error);
+      });
   }
+}
+
 
   // isFieldVisibleInView function: This function checks if a certain field is visible in the current view.
   // eslint-disable-next-line no-unused-vars
@@ -533,6 +556,56 @@ const TableMateGPTExtension = () => {
         )
       : null
   }
+  
+  // Re-sets the advanced model functionality
+  const resetGPTParameters = () => {
+    setGptModel(defaultGptModel);
+    setMaxTokens(defaultTokens);
+    setTemperature(defaultTemperature);
+    setTopP(defaultTopP);
+    setBestOf(defaultBestOf);
+
+    // Resetting the values in globalConfig
+    globalConfig.setAsync(generateConfigKey(cursor.activeTableId, "gptModel"), defaultGptModel);
+    globalConfig.setAsync(generateConfigKey(cursor.activeTableId, "maxTokens"), defaultTokens);
+    globalConfig.setAsync(generateConfigKey(cursor.activeTableId, "temperature"), defaultTemperature);
+    globalConfig.setAsync(generateConfigKey(cursor.activeTableId, "topP"), defaultTopP);
+    globalConfig.setAsync(generateConfigKey(cursor.activeTableId, "bestOf"), defaultBestOf);
+};
+
+
+// Use these handlers in your Input components with the onChange prop
+const handleMaxTokensChange = (e) => {
+  const newValue = e.target.value;
+  if (newValue === '' || (parseInt(newValue, 10) >= 1 && parseInt(newValue, 10) <= 32000)) {
+    globalConfig.setAsync(generateConfigKey(cursor.activeTableId, "maxTokens"), newValue);
+    setMaxTokens(newValue);
+  }
+};
+
+const handleTemperatureChange = (e) => {
+  const newValue = e.target.value;
+  if (newValue === '' || (parseFloat(newValue) >= 0 && parseFloat(newValue) <= 1)) {
+    globalConfig.setAsync(generateConfigKey(cursor.activeTableId, "temperature"), newValue);
+    setTemperature(newValue);
+  }
+};
+
+const handleTopPChange = (e) => {
+  const newValue = e.target.value;
+  if (newValue === '' || (parseFloat(newValue) >= 0 && parseFloat(newValue) <= 1)) {
+    globalConfig.setAsync(generateConfigKey(cursor.activeTableId, "topP"), newValue);
+    setTopP(newValue);
+  }
+};
+
+const handleBestOfChange = (e) => {
+  const newValue = e.target.value;
+  if (newValue === '' || (/^\d+$/.test(newValue) && parseInt(newValue, 10) >= 1 && parseInt(newValue, 10) <= 5)) {
+    globalConfig.setAsync(generateConfigKey(cursor.activeTableId, "bestOf"), newValue);
+    setBestOf(newValue);
+  }
+};
 
   // reportProblem: Gathers user/system info, prepares an email to support, and opens a mailto link.
   function reportProblem () {
@@ -883,36 +956,62 @@ const TableMateGPTExtension = () => {
                   <Text fontWeight="" marginBottom={1}>
                     Max Tokens
                   </Text>
+                  {helpVisibility && (
+                    <Text
+                      marginBottom={2}
+                      backgroundColor="#F9F9F9"
+                      padding={3}
+                      fontStyle="italic"
+                    >
+                       The max length of your request and response. Different models have different max amounts. e.g. 4096 or 11K tokens.
+                       <Link
+                          href="https://platform.openai.com/tokenizer"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ color: "#a0a0a0", whiteSpace: "nowrap" }}
+                        >
+                          See more.
+                        </Link>
+                    </Text>
+                  )}
                   <Input
                     value={
                       globalConfig.get(
                         generateConfigKey(cursor.activeTableId, "maxTokens")
                       ) || ""
                     }
-                    onChange={(e) => {
-                      const newValue = e.target.value
-                      globalConfig.setAsync(generateConfigKey(cursor.activeTableId, "maxTokens"), newValue)
-                      setMaxTokens(newValue)
-                    }}
+                    onChange={handleMaxTokensChange}
+                    type="number"
+                    min="1"
                     placeholder={`${defaultTokens}`}
                     disabled={disableExtension}
                   />
                 </Box>
                 <Box flexBasis="50%">
                   <Text fontWeight="" marginBottom={1}>
-                    Temperature
+                    Temperature (0-1)
                   </Text>
+                  {helpVisibility && (
+                    <Text
+                      marginBottom={2}
+                      backgroundColor="#F9F9F9"
+                      padding={3}
+                      fontStyle="italic"
+                    >
+                       Controls randomness. Lower values give more predictable results. Higher values are more creative and diverse.
+                    </Text>
+                  )}
                   <Input
                     value={
                       globalConfig.get(
                         generateConfigKey(cursor.activeTableId, "temperature")
                       ) || ""
                     }
-                    onChange={(e) => {
-                      const newValue = e.target.value
-                      globalConfig.setAsync(generateConfigKey(cursor.activeTableId, "temperature"), newValue)
-                      setTemperature(newValue)
-                    }}
+                    onChange={handleTemperatureChange}
+                    type="number"
+                    min="0"
+                    max="1"
+                    step="0.01"
                     placeholder={`${defaultTemperature}`}
                     disabled={disableExtension}
                   />
@@ -921,43 +1020,75 @@ const TableMateGPTExtension = () => {
               <Box display="flex" marginBottom={1}>
                 <Box marginRight={2} flexBasis="50%">
                   <Text fontWeight="" marginBottom={1}>
-                    Top P
+                    Top P (0-1)
                   </Text>
+                  {helpVisibility && (
+                    <Text
+                      marginBottom={2}
+                      backgroundColor="#F9F9F9"
+                      padding={3}
+                      fontStyle="italic"
+                    >
+                       Nucleus sampling dictates focus on probable results: higher values are less deterministic and more varied.
+                    </Text>
+                  )}
                   <Input
                     value={
                       globalConfig.get(
                         generateConfigKey(cursor.activeTableId, "topP")
                       ) || ""
                     }
-                    onChange={(e) => {
-                      const newValue = e.target.value
-                      globalConfig.setAsync(generateConfigKey(cursor.activeTableId, "topP"), newValue)
-                      setTopP(newValue)
-                    }}
+                    onChange={handleTopPChange}
+                    type="number"
+                    min="0"
+                    max="1"
+                    step="0.01"
                     placeholder={`${defaultTopP}`}
                     disabled={disableExtension}
                   />
                 </Box>
                 <Box flexBasis="50%">
                   <Text fontWeight="" marginBottom={1}>
-                    Best Of
+                    Best Of (1-5)
                   </Text>
+                  {helpVisibility && (
+                    <Text
+                      marginBottom={2}
+                      backgroundColor="#F9F9F9"
+                      padding={3}
+                      fontStyle="italic"
+                    >
+                      Each task repeats this many times and internally chooses the best response. Reptition can get expensive.
+                    </Text>
+                  )}
                   <Input
                     value={
                       globalConfig.get(
                         generateConfigKey(cursor.activeTableId, "bestOf")
                       ) || ""
                     }
-                    onChange={(e) => {
-                      const newValue = e.target.value
-                      globalConfig.setAsync(generateConfigKey(cursor.activeTableId, "bestOf"), newValue)
-                      setBestOf(newValue)
-                    }}
+                    onChange={handleBestOfChange}
+                    type="number"
+                    min="1"
+                    max="5"
+                    step="1"
                     placeholder={`${defaultBestOf}`}
                     disabled={disableExtension}
                   />
                 </Box>
               </Box>
+              <Button
+                  onClick={resetGPTParameters}
+                  variant="secondary"
+                  className="secondary"
+                  icon="reset"
+                  marginTop={2}
+                  marginBottom={2}
+                  style={{ width: '100%' }}
+                  aria-label="Reset GPT Parameters"
+              >
+                  Reset Parameters
+              </Button>
             </Box>
           )}
           <Box marginTop={3}>
