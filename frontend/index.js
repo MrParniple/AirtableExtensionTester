@@ -61,7 +61,7 @@ const TableMateGPTExtension = () => {
   const [baseAuthenticated, setBaseAuthenticated] = useState(false) // If this base is authenticated
   const [planActive, setPlanActive] = useState(false) // If the plan is active
   const [usedTrial, setUsedTrial] = useState(false) // If they already used their trial
-  // const [displayedRecordCount, setDisplayedRecordCount] = useState(currentRecordCount);
+  const [planCanceled, setPlanCanceled] = useState(false) // If the plan is active
   const displayedRecordCount = useRef(0)
   const [disableExtension, setDisableExtension] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -71,6 +71,8 @@ const TableMateGPTExtension = () => {
   const isCancelled = useRef(false)
   const [canceling, setCanceling] = useState(false)
   const [logArray, setLogArray] = useState([])
+  const [gptModelOptions, setGptModelOptions] = useState([]);
+
 
   // Define the email address to be used in the reportProblem function.
   const emailAddress = "help@tablemate.io"
@@ -133,6 +135,7 @@ const TableMateGPTExtension = () => {
     canUpdate: false,
     canDelete: false
   })
+  
   const checkUserPermissions = async () => {
     setIsCheckingUserPermissions(true)
 
@@ -171,6 +174,7 @@ const TableMateGPTExtension = () => {
         customLog("Access allowed:", result.data.message)
         setCurrentRecordCount(result.data.currentRecordCount)
         displayedRecordCount.current = result.data.currentRecordCount
+        setPlanCanceled(result.data.subscriptionCanceled);
 
         customLog("Plan active actual status:,", result.data.planActive)
         customLog("Trying the logic with the plan:,", result.data.planActive !== null)
@@ -178,6 +182,7 @@ const TableMateGPTExtension = () => {
         customLog("BaseAuthenticated before:", baseAuthenticated)
         customLog("Plan active before:", planActive)
         customLog("Used trial before:", usedTrial)
+        customLog("Plan canceled:", planCanceled)
         // Set the planActive and usedTrial states based on the result data
         setPlanActive(result.data.planActive)
         setUsedTrial(result.data.usedTrial)
@@ -283,6 +288,31 @@ const TableMateGPTExtension = () => {
   }, []) // Only run this effect once when the component mounts
   // }, [setRecordCount]) // Only run this effect once when the component mounts  
 
+  const fetchGptModelOptions = async () => {
+    try {
+      const getGPTModelsFunction = httpsCallable(functions, 'getGPTModels');
+      const response = await getGPTModelsFunction();
+      const sortedData = response.data.sort((a, b) => b.versionNumber - a.versionNumber);
+      setGptModelOptions(sortedData.length > 0 ? sortedData : defaultOptions);
+    } catch (error) {
+      console.error('Error fetching GPT models:', error);
+      setGptModelOptions(defaultOptions);
+    }
+  };
+  
+  
+  const defaultOptions = [
+    { value: "gpt-4", label: "GPT-4 (most sophisticated)" },
+    { value: "gpt-3.5-turbo", label: "GPT-3.5 Turbo (fastest)" },
+    { value: "gpt-3.5-turbo-16k", label: "GPT-3.5 Turbo 16K (fast and large output)" }
+  ];
+  
+  useEffect(() => {
+    fetchGptModelOptions();
+  }, []); // Empty dependency array to run only on mount
+  
+  
+
   // Initialize state variables
   const [maxTokens, setMaxTokens] = useState(defaultTokens)
   const [gptModel, setGptModel] = useState(defaultGptModel)
@@ -349,28 +379,99 @@ const TableMateGPTExtension = () => {
     customLog("bestOf:", bestOfValue)
     const bestOf = parseFloat(bestOfValue)
 
-    if (
-      !inputTable.getFieldByIdIfExists(input) ||
-      !inputTable.getFieldByIdIfExists(output) ||
-      !inputTable.getFieldByIdIfExists(checkmark)
-    ) {
-      alert("Please select the input, output, and checkmark fields.")
-      return
+    // Checking for edge cases and handling errors with alerts
+    
+    // Check which fields are missing and create a custom list
+const missingFields = [];
+if (!inputTable.getFieldByIdIfExists(input)) {
+  missingFields.push("Input");
+}
+if (!inputTable.getFieldByIdIfExists(output)) {
+  missingFields.push("Output");
+}
+if (!inputTable.getFieldByIdIfExists(checkmark)) {
+  missingFields.push("Checkmark");
+}
+
+// Function to format the list of missing fields into a readable string
+const formatMissingFields = (fields) => {
+  if (fields.length === 1) {
+    return fields[0];
+  } else if (fields.length === 2) {
+    return `${fields[0]} and ${fields[1]}`;
+  } else {
+    return `${fields.slice(0, -1).join(", ")}, and ${fields[fields.length - 1]}`;
+  }
+};
+
+// Create a custom alert message based on the missing fields
+if (missingFields.length > 0) {
+  const missingFieldsFormatted = formatMissingFields(missingFields);
+  alert(`Please select the ${missingFieldsFormatted} field${missingFields.length > 1 ? 's' : ''}.`);
+  return;
+}
+    
+    // Check if input and output fields are the same
+    if (input === output) {
+      alert("The Prompt and Response fields are the same. Please change one.");
+      customLog("Throwing an alert that: Input is the same as the output");
+      return;
     }
 
-    // Checking for edge cases to make alerts
-    const recordsToProcess = inputRecords.filter(record => record.getCellValue(checkmark) === true || record.getCellValue(checkmark) === 1)
+    // Check if input and checkmark fields are the same
+    if (input === checkmark) {
+      alert("The Prompt and Checkmark fields are the same. Please change one.");
+      customLog("Throwing an alert that: Input is the same as the checkmark field");
+      return;
+    }  
+
+    // Check for invalid checkmark values
     const recordsInvalidCheckmark = inputRecords.filter(record => ![true, false, 1, 0, null].includes(record.getCellValue(checkmark)))
-
     if (recordsInvalidCheckmark.length > 0) {
-      alert("The 'Selected Rows' field may use a formula field, but must result in 1 or 0 result.")
+      alert("The 'Selected Rows' field may use a formula field, but must result in 1 or 0 result.");
+      return;
+    }
+
+    // Filter records to process based on checkmark field
+    const recordsToProcess = inputRecords.filter(record => record.getCellValue(checkmark) === true || record.getCellValue(checkmark) === 1)
+    if (recordsToProcess.length === 0) {
+      alert("No rows have their checkmark checked to be processed. Check rows to send to GPT.")
       return
     }
 
-    if (recordsToProcess.length === 0) {
-      alert("No rows have their checkmark checked to be processed.")
+    // Check if all checked rows have empty prompts
+    const emptyPromptRecords = recordsToProcess.filter(record => !record.getCellValue(input));
+    if (emptyPromptRecords.length === recordsToProcess.length) {
+      alert("All checked rows currently have empty prompts. Fill in at least one prompt to send a request.");
+      return;
+    }
+
+    // Check if all checked rows already have responses
+    const recordsWithResponses = recordsToProcess.filter(record => {
+      const outputRecord = outputRecords.find((r) => r.id === record.id);
+      return outputRecord.getCellValue(output);
+    });
+    if (recordsWithResponses.length === recordsToProcess.length) {
+      setIsLoading(false)
+      alert("All checked rows already have responses. Check rows without responses or delete responses to reprocess those rows.");
       return
     }
+
+    // Check if all checked rows have non-empty prompts AND no responses
+    const recordsToBeProcessed = recordsToProcess.filter(record => {
+      const outputRecord = outputRecords.find((r) => r.id === record.id);
+      // Pass if both conditions are met: the prompt is not empty AND there is no response
+      return record.getCellValue(input) && !outputRecord.getCellValue(output);
+    });
+
+    if (!recordsToBeProcessed.length) {
+      setIsLoading(false);
+      // Adjust the alert message as per your needs
+      alert("All checked rows either have empty prompts or already have responses. Fill in prompts or delete responses to reprocess.");
+      return;
+    } 
+
+    // End Error handling
 
     const limit = pLimit(10) // Set the concurrency limit.
     setIsLoading(true)
@@ -456,7 +557,7 @@ const TableMateGPTExtension = () => {
       // If no records were processed in this run, it means all marked records were already processed
       if (recordsProcessedThisRun.current === 0) {
         setIsLoading(false)
-        alert("All records with checkmarks have already been processed.")
+        alert("All checked rows already have responses. Check rows without responses or delete responses to reprocess those rows.");
         return
       }
     } catch (error) {
@@ -643,12 +744,6 @@ const handleBestOfChange = (e) => {
     window.location.href = mailtoLink
   }
 
-  const options = [
-    { value: "gpt-4", label: "GPT-4 (most sophisticated)" },
-    { value: "gpt-3-turbo", label: "GPT-3 Turbo (fastest)" },
-    { value: "gpt-3.5-turbo-16k", label: "GPT-3.5 Turbo 16K (fast and large output)" }
-  ]
-
   // UI component: This is the Airtable extension frontend UI
   return (
     <>
@@ -676,7 +771,7 @@ const handleBestOfChange = (e) => {
             <Text fontSize={2}>
               Get started quickly at
               <Link
-                href="https://www.tablemate.io/signup-firebase"
+                href="https://tablematetesting.io/signup-firebase"
                 target="_blank"
                 rel="noopener noreferrer"
                 marginLeft={1}
@@ -728,16 +823,19 @@ const handleBestOfChange = (e) => {
             paddingTop={5}
             paddingBottom={5}
           >
-            <Text fontSize={6} marginBottom={2} fontWeight="bold">
+            <Text fontSize={6} marginBottom={2} fontWeight="bold" lineHeight={1}>
               Sign up for a Subscription
             </Text>
             <Text fontSize={4} marginBottom={3}>
-              You used your 50 free tasks.
+            {planCanceled
+              ? "Your plan has been canceled by you or a team member."
+              : "You or someone with access to this Base has used the 50 free tasks."
+            }
             </Text>
             <Text fontSize={2}>
               Easily sign up for a
               <Link
-                href="https://www.tablemate.io/user/subscription"
+                href="https://tablematetesting.webflow.io/user/subscription"
                 target="_blank"
                 rel="noopener noreferrer"
                 marginLeft={1}
@@ -940,7 +1038,7 @@ const handleBestOfChange = (e) => {
               <Select
                 marginBottom={2}
                 value={gptModel}
-                options={options}
+                options={gptModelOptions}
                 onChange={(newValue) => {
                   customLog("Selected Value:", newValue)
                   globalConfig.setAsync(
@@ -1186,7 +1284,7 @@ const handleBestOfChange = (e) => {
               flexWrap="wrap"
             >
               <Link
-                href="https://www.tablemate.io"
+                href="https://tablematetesting.webflow.io"
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{ color: "#a0a0a0", whiteSpace: "nowrap" }}
@@ -1201,7 +1299,7 @@ const handleBestOfChange = (e) => {
                 |
               </Text>
               <Link
-                href="https://www.tablemate.io/user/get-started"
+                href="https://tablemate.io/user/get-started"
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{ color: "#a0a0a0", whiteSpace: "nowrap" }}
@@ -1216,7 +1314,7 @@ const handleBestOfChange = (e) => {
                 |
               </Text>
               <Link
-                href="https://www.tablemate.io/tutorials"
+                href="https://tablematetesting.webflow.io/tutorials"
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{ color: "#a0a0a0", whiteSpace: "nowrap" }}
@@ -1231,7 +1329,7 @@ const handleBestOfChange = (e) => {
                 |
               </Text>
               <Link
-                href="https://www.tablemate.io/privacy-policy"
+                href="https://tablemate.io/privacy-policy"
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{ color: "#a0a0a0", whiteSpace: "nowrap" }}
@@ -1246,7 +1344,7 @@ const handleBestOfChange = (e) => {
                 |
               </Text>
               <Link
-                href="https://www.tablemate.io/terms"
+                href="https://tablematetesting.webflow.io/terms"
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{ color: "#a0a0a0", whiteSpace: "nowrap" }}
